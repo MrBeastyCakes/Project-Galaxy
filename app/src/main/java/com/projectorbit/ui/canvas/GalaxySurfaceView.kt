@@ -37,6 +37,9 @@ class GalaxySurfaceView @JvmOverloads constructor(
     // Gesture router — wired via setupGestures() after surface is ready
     private var gestureRouter: GestureRouter? = null
 
+    // Stored gesture callbacks so we can re-wire after surface recreation
+    private var pendingGestureSetup: (() -> Unit)? = null
+
     init {
         holder.addCallback(this)
         setZOrderOnTop(false)
@@ -63,6 +66,9 @@ class GalaxySurfaceView @JvmOverloads constructor(
         renderer = rend
 
         startRenderThread(rend)
+
+        // Re-apply gesture setup now that camera is available
+        pendingGestureSetup?.invoke()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -220,18 +226,25 @@ class GalaxySurfaceView @JvmOverloads constructor(
         onCreateTidalLock: (bodyIdA: String, bodyIdB: String) -> Unit,
         onZoomChanged: (Float) -> Unit = {}
     ) {
-        val cam = camera ?: return
-        gestureRouter = GestureRouter(
-            camera = cam,
-            physicsWorld = physicsWorld,
-            onBodySelected = onBodySelected,
-            onDoubleTapBody = onDoubleTapBody,
-            onDoubleTapEmpty = onDoubleTapEmpty,
-            onAccretionDrop = onAccretionDrop,
-            onCreatePlanetFromAsteroid = onCreatePlanetFromAsteroid,
-            onCreateTidalLock = onCreateTidalLock,
-            onZoomChanged = onZoomChanged
-        )
+        // Store the setup lambda so it can be re-applied after surface recreation
+        val setup = {
+            val cam = camera
+            if (cam != null) {
+                gestureRouter = GestureRouter(
+                    camera = cam,
+                    physicsWorld = physicsWorld,
+                    onBodySelected = onBodySelected,
+                    onDoubleTapBody = onDoubleTapBody,
+                    onDoubleTapEmpty = onDoubleTapEmpty,
+                    onAccretionDrop = onAccretionDrop,
+                    onCreatePlanetFromAsteroid = onCreatePlanetFromAsteroid,
+                    onCreateTidalLock = onCreateTidalLock,
+                    onZoomChanged = onZoomChanged
+                )
+            }
+        }
+        pendingGestureSetup = setup
+        setup() // Try immediately in case camera is already ready
     }
 
     /**

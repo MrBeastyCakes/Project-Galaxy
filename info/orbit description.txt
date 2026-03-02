@@ -1,0 +1,56 @@
+Product Concept: Project Orbit (Working Title)
+1. The Core Vision (What it is)
+Project Orbit is a spatial, physics-driven note-taking application designed to break users out of the rigid, linear constraints of traditional folder hierarchies. Instead of lists and nested directories, the app operates as an infinite, interactive galactic map. It leverages gravity, orbits, and celestial bodies to visually represent relationships, priority, and the lifecycle of ideas.
+
+The goal is to make knowledge management feel intuitive, exploratory, and highly visual, blending the utility of a second-brain app with the engaging, tactile interface of a sandbox game.
+
+2. The Mechanics (How it works)
+The user interface abandons standard sidebars and dropdown menus in favor of an infinite canvas powered by a lightweight 2D physics engine. Navigation relies entirely on panning, pinching to zoom, and tapping.
+
+Macro-to-Micro Navigation: Zooming out reveals the entire "Galaxy" (all notes). Zooming in takes the user to a "Solar System" (Category), down to a "Planet" (Note), and finally penetrating the atmosphere lands them on the "Surface" (the text editor).
+
+Gravity & Physics: Elements interact using simulated gravity. Items with higher "mass" (importance) pull related elements closer, creating organic clusters of information rather than alphabetical lists.
+
+Minimalist UI: The screen remains clean. Menus only appear contextually when interacting with a celestial body.
+
+3. Feature Breakdown (What it does)
+Organization & Hierarchy (The Galaxy)
+Suns (Primary Bundles/Workspaces): The center of a user's workflow (e.g., "Work," "Personal," "Projects"). These anchor the systems.
+
+Gas Giants / Binary Stars (Sub-Categories): Major themes orbiting the Sun (e.g., "Employees," "Finances").
+
+Planets (The Notes): Individual documents that orbit their respective parent bodies.
+
+Quick Capture (The Asteroid Belt)
+Stardust (The Inbox): When a user quickly jots down a fleeting thought or saves a link, it enters the system as a small asteroid. These orbit the outer edge of the galaxy as unorganized fragments.
+
+Accretion (Filing): To organize an idea, the user drags an asteroid and "crashes" it into a Planet to merge the information, or drags it into a specific orbit to let it form into a brand-new Planet.
+
+Visual Metadata (Atmospheres & Moons)
+Instead of a sidebar full of tags, dates, and checkboxes, Project Orbit uses planetary features to communicate status at a glance:
+
+Moons (Sub-tasks): Action items live as tiny moons orbiting a note. Ticking a checkbox causes the moon to "land" or dissolve into the planet.
+
+Atmosphere (Tags/Categories): The color and density of a planet's aura represent its tags (e.g., a toxic green atmosphere for "Urgent," a calm blue for "Reference").
+
+Ring Systems (Collaboration): If a note is shared with external collaborators, it develops a visible ring system, indicating outside satellite access.
+
+Lifecycle & Priority (Stellar Evolution)
+The visual state of a note dynamically changes based on its word count, activity, and importance.
+
+Protostar: A newly created, empty note that is still glowing and waiting to be "settled."
+
+High Mass: Pinned or frequently accessed notes become larger and heavier, pulling their surrounding orbits tighter.
+
+Orbital Decay: Notes that haven't been opened in months slowly drift to the outer edges of their system, turning into icy Dwarf Planets to keep the active view uncluttered.
+
+Supernovas (Deletion): Deleting a note triggers a satisfying explosion, leaving behind a faint "nebula"—a searchable graveyard of deleted text fragments.
+
+Connectivity & Search (Wormholes & Telescopes)
+Tidal Locking: Users can lock two notes together. Moving one drags the other along, representing a strict conceptual link.
+
+Constellations (Backlinks): When a user manually links notes across different solar systems, the app draws faint, glowing lines between them. Linking multiple ideas across domains forms a visible Constellation overlay on the galactic map.
+
+Wormholes (Shortcuts): Dropping a wormhole on a note's surface acts as a portal. Tapping it instantly warps the camera to a completely different system without needing to zoom out and back in.
+
+Telescope View (Search): Activating the search bar darkens the entire UI. As the user types, only the planets containing those exact keywords illuminate, shining like bright stars against the black background.

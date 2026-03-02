@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Project Orbit</string>
+    <string name="quick_capture_hint">Capture a thought…</string>
+    <string name="delete_undo_message">Note deleted. Undo?</string>
+    <string name="undo">Undo</string>
+    <string name="save_error_message">Unable to save — retrying</string>
+    <string name="create_first_sun">Tap + to create your first Sun (category)</string>
+</resources>

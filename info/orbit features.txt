@@ -1,0 +1,53 @@
+1. Stellar Evolution (Note Aging)
+Instead of a "last modified" timestamp, let the visual state of the planet reflect its activity:
+
+Protostar: A brand new, glowing note that hasn't been "settled" (fully written) yet.
+
+Gas Giants: Notes that have grown very large in word count.
+
+Orbital Decay: Notes you haven't opened in months begin to drift further away from the center of the system, turning into "Dwarf Planets" on the icy outskirts.
+
+Supernova: When you delete a note, it doesn't just vanish; it explodes into a brief flash of light, leaving behind a small cloud of "nebula dust" (searchable deleted fragments).
+
+2. The Gravity Well (Priority & Search)
+Since you want minimal menus, use physics to handle organization:
+
+High Mass: Important or pinned notes have "Higher Mass," pulling them closer to the center of the screen so they are always visible.
+
+Telescope View (Search): Instead of a search list, typing in a search bar acts like a telescope. The screen darkens, and only the "planets" containing those keywords light up like bright stars in the distance.
+
+Tidal Locking: You can "Tidally Lock" two notes together. If you move one, the other follows, representing a permanent logical link between two ideas.
+
+3. Constellations (Knowledge Mapping)
+Traditional "backlinks" are boring. In your app, you could manually draw lines between planets in different systems.
+
+Once you link 3 or more notes across different bundles (e.g., a "Work" note linked to a "Personal Growth" note), the app draws a Constellation.
+
+This creates a new "Layer" in your map where you can see how high-level themes in your life intersect across categories.
+
+4. The Asteroid Belt (Quick Capture)
+Not every thought deserves to be a planet.
+
+Stardust: This is your "Inbox." Small, fleeting thoughts appear as tiny asteroids orbiting the entire galaxy.
+
+Accretion: When you're ready to turn an asteroid into a note, you "collide" it with another asteroid or a planet to begin forming a new celestial body.
+
+5. Atmosphere & Moons (Metadata)
+Instead of a sidebar for tags and dates, use planetary features:
+
+Moons: Sub-tasks or checkboxes orbit the main planet as tiny moons. When you check a task off, the moon "lands" on the planet.
+
+Atmosphere: The color of the planet’s atmosphere represents a tag (e.g., Green for "Urgent," Blue for "Reference").
+
+Rings: If a note is shared with others, it gains a ring system, representing "Satellite" access by other people.
+
+6. Wormholes (Navigation)
+To keep the UI minimal, you need a way to jump between systems without a "Back" button:
+
+Pinch-to-Zoom: Zooming out takes you from Note (Surface) -> System (Category) -> Galaxy (All Notes).
+
+Wormholes: You can drop a "Wormhole" inside a note that acts as a portal. Clicking it instantly "warps" your camera view to a different planet in a completely different system.
+
+main:
+a new notes app that works with minimal menus, the app will be based around a space theme, notes will be planets, and they will orbit their categories (bundles)
+for example: work will be orbited by employees which will be orbited by all notes i put in that categories.

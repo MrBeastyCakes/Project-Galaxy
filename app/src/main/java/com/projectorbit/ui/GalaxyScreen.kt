@@ -1,12 +1,25 @@
 package com.projectorbit.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -15,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -60,6 +74,9 @@ fun GalaxyScreen(
     val searchState by searchViewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var showQuickCapture by remember { mutableStateOf(false) }
+    var showCreateMenu by remember { mutableStateOf(false) }
+    var showCreateSunDialog by remember { mutableStateOf(false) }
+    var showCreatePlanetDialog by remember { mutableStateOf(false) }
 
     // Delete undo snackbar
     LaunchedEffect(uiState.pendingUndoBodyId) {
@@ -80,11 +97,108 @@ fun GalaxyScreen(
         containerColor = androidx.compose.ui.graphics.Color.Black,
         floatingActionButton = {
             if (!uiState.isSurfaceEditorVisible && !searchState.isTelescopeActive) {
-                FloatingActionButton(
-                    onClick = { showQuickCapture = true },
-                    containerColor = MaterialTheme.colorScheme.primary
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Quick capture")
+                    // Expandable creation options
+                    AnimatedVisibility(
+                        visible = showCreateMenu,
+                        enter = fadeIn() + slideInVertically { it },
+                        exit = fadeOut() + slideOutVertically { it }
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Create Sun (category)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Sun (Category)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                SmallFloatingActionButton(
+                                    onClick = {
+                                        showCreateMenu = false
+                                        showCreateSunDialog = true
+                                    },
+                                    containerColor = androidx.compose.ui.graphics.Color(0xFFFFDC50)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Star,
+                                        contentDescription = "Create Sun",
+                                        tint = androidx.compose.ui.graphics.Color.Black,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            // Create Planet (note under a sun)
+                            if (uiState.renderSnapshot.bodies.any {
+                                    it.bodyType == com.projectorbit.domain.model.BodyType.SUN
+                                }) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "Planet (Note)",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    SmallFloatingActionButton(
+                                        onClick = {
+                                            showCreateMenu = false
+                                            showCreatePlanetDialog = true
+                                        },
+                                        containerColor = androidx.compose.ui.graphics.Color(0xFF508CC8)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Add,
+                                            contentDescription = "Create Planet",
+                                            tint = androidx.compose.ui.graphics.Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Quick Capture (asteroid)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Quick Thought",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                SmallFloatingActionButton(
+                                    onClick = {
+                                        showCreateMenu = false
+                                        showQuickCapture = true
+                                    },
+                                    containerColor = androidx.compose.ui.graphics.Color(0xFF8C8278)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "Quick Capture",
+                                        tint = androidx.compose.ui.graphics.Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Main FAB
+                    FloatingActionButton(
+                        onClick = { showCreateMenu = !showCreateMenu },
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Icon(
+                            if (showCreateMenu) Icons.Default.Close else Icons.Default.Add,
+                            contentDescription = if (showCreateMenu) "Close menu" else "Create"
+                        )
+                    }
                 }
             }
         }
@@ -266,6 +380,120 @@ fun GalaxyScreen(
                 showQuickCapture = false
             },
             onDismiss = { showQuickCapture = false }
+        )
+    }
+
+    // Create Sun dialog
+    if (showCreateSunDialog) {
+        var sunName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showCreateSunDialog = false },
+            title = { Text("Create Sun (Category)") },
+            text = {
+                Column {
+                    Text(
+                        "Suns are categories that anchor your galaxy. Planets orbit around them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.padding(top = 12.dp))
+                    OutlinedTextField(
+                        value = sunName,
+                        onValueChange = { sunName = it },
+                        placeholder = { Text("e.g. Work, Ideas, Journal...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        galaxyViewModel.createSun(sunName.trim())
+                        showCreateSunDialog = false
+                    },
+                    enabled = sunName.isNotBlank()
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateSunDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Create Planet dialog
+    if (showCreatePlanetDialog) {
+        val suns = uiState.renderSnapshot.bodies.filter {
+            it.bodyType == com.projectorbit.domain.model.BodyType.SUN
+        }
+        var planetName by remember { mutableStateOf("") }
+        var selectedSunIndex by remember { mutableStateOf(0) }
+        AlertDialog(
+            onDismissRequest = { showCreatePlanetDialog = false },
+            title = { Text("Create Planet (Note)") },
+            text = {
+                Column {
+                    Text(
+                        "Planets are notes that orbit a Sun (category).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.padding(top = 12.dp))
+                    OutlinedTextField(
+                        value = planetName,
+                        onValueChange = { planetName = it },
+                        placeholder = { Text("Note title...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (suns.size > 1) {
+                        Spacer(Modifier.padding(top = 8.dp))
+                        Text(
+                            "Orbiting: ${suns.getOrNull(selectedSunIndex)?.name ?: ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            suns.forEachIndexed { index, sun ->
+                                TextButton(
+                                    onClick = { selectedSunIndex = index }
+                                ) {
+                                    Text(
+                                        sun.name,
+                                        color = if (index == selectedSunIndex)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val parentSun = suns.getOrNull(selectedSunIndex)
+                        if (parentSun != null) {
+                            galaxyViewModel.createPlanet(
+                                name = planetName.trim(),
+                                parentId = parentSun.id,
+                                parentX = parentSun.positionX,
+                                parentY = parentSun.positionY
+                            )
+                        }
+                        showCreatePlanetDialog = false
+                    },
+                    enabled = planetName.isNotBlank() && suns.isNotEmpty()
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlanetDialog = false }) { Text("Cancel") }
+            }
         )
     }
 

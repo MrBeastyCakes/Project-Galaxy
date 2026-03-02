@@ -63,12 +63,12 @@ class LODManager {
         val result = mutableListOf<RenderEntry>()
 
         for (body in snapshot.bodies) {
-            // Frustum cull — skip bodies fully outside viewport
-            val screenR = camera.worldRadiusToScreen(body.radius).coerceAtLeast(8f)
+            // Frustum cull — skip bodies fully outside viewport (world-space comparison)
+            val worldR = body.radius.toFloat().coerceAtLeast(20f) // minimum world margin for tiny bodies
             val bx = body.positionX.toFloat()
             val by = body.positionY.toFloat()
-            if (bx + screenR < rect.left || bx - screenR > rect.right ||
-                by + screenR < rect.top || by - screenR > rect.bottom
+            if (bx + worldR < rect.left || bx - worldR > rect.right ||
+                by + worldR < rect.top || by - worldR > rect.bottom
             ) {
                 continue
             }
@@ -107,10 +107,8 @@ class LODManager {
                 fadeBand(zoom, ZOOM_SYSTEM_MAX - FADE_BAND, ZOOM_SYSTEM_MAX + FADE_BAND)
             }
             BodyType.ASTEROID -> {
-                // Asteroid belt visible at galaxy/cluster, hidden in close system view
-                val appear = fadeBand(zoom, Camera.ZOOM_GALAXY_MIN, ZOOM_GALAXY_MAX + FADE_BAND)
-                val disappear = 1f - fadeBand(zoom, ZOOM_CLUSTER_MAX - FADE_BAND, ZOOM_CLUSTER_MAX + FADE_BAND)
-                appear * disappear.coerceAtLeast(0f)
+                // Asteroids visible from galaxy through cluster view, fade out at system zoom
+                1f - fadeBand(zoom, ZOOM_CLUSTER_MAX - FADE_BAND, ZOOM_CLUSTER_MAX + FADE_BAND)
             }
             BodyType.NEBULA -> {
                 // Nebulae visible from cluster onward

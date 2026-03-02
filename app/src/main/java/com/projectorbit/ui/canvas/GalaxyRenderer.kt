@@ -155,7 +155,7 @@ class GalaxyRenderer(
         for (entry in renderList) {
             val body = entry.body
             val (sx, sy) = camera.worldToScreen(body.positionX, body.positionY)
-            val sr = camera.worldRadiusToScreen(body.radius).coerceAtLeast(2f)
+            val sr = camera.worldRadiusToScreen(body.radius).coerceAtLeast(4f)
             celestialPainter.draw(
                 canvas, body, sx, sy, sr,
                 alpha = entry.alpha,

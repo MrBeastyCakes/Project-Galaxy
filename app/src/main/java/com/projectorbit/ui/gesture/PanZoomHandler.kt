@@ -10,9 +10,9 @@ import kotlin.math.sqrt
  * Handles single-finger pan (no body hit) and two-finger pinch-to-zoom + pan.
  *
  * Single-finger pan: when GestureRouter confirms no body was hit, a single-finger
- * drag pans the camera by adjusting [Camera.targetCenterX/Y].
- * Two-finger pinch: adjusts [Camera.targetZoom] via pinch ratio.
- * Two-finger drag: adjusts [Camera.targetCenterX/Y].
+ * drag pans the camera by adjusting the camera target.
+ * Two-finger pinch: adjusts zoom via pinch ratio; centroid movement is folded into
+ * zoomBy() so there is no separate panBy() call (avoids double-adjustment).
  * Fling: applies velocity to camera center with deceleration.
  */
 class PanZoomHandler(
@@ -33,6 +33,10 @@ class PanZoomHandler(
 
     private var prevX = 0f
     private var prevY = 0f
+
+    companion object {
+        private const val MAX_FLING_VELOCITY = 5000f
+    }
 
     fun onTouchEvent(event: MotionEvent): Boolean {
         val pointerCount = event.pointerCount
@@ -73,8 +77,8 @@ class PanZoomHandler(
                 val dt = (event.eventTime - lastEventTime).toFloat().coerceAtLeast(1f)
                 val dx = event.x - prevX
                 val dy = event.y - prevY
-                flingVx = dx / dt * 1000f
-                flingVy = dy / dt * 1000f
+                flingVx = (dx / dt * 1000f).coerceIn(-MAX_FLING_VELOCITY, MAX_FLING_VELOCITY)
+                flingVy = (dy / dt * 1000f).coerceIn(-MAX_FLING_VELOCITY, MAX_FLING_VELOCITY)
                 true
             }
 
@@ -103,20 +107,12 @@ class PanZoomHandler(
         val focalX = (x1 + x2) / 2f
         val focalY = (y1 + y2) / 2f
 
-        // Pinch-to-zoom
-        if (lastSpan > 0f && abs(currentSpan - lastSpan) > 1f) {
-            val scaleFactor = currentSpan / lastSpan
+        // zoomBy handles both zoom-anchoring and centroid pan in one operation,
+        // so we do NOT call panBy() separately — that would double-adjust the target.
+        if (lastSpan > 0f) {
+            val scaleFactor = if (abs(currentSpan - lastSpan) > 1f) currentSpan / lastSpan else 1f
             camera.zoomBy(scaleFactor, focalX, focalY)
-            onZoomChanged(camera.targetZoom)
-        }
-
-        // Two-finger pan (centroid movement)
-        val prevFocalX = (lastX1 + lastX2) / 2f
-        val prevFocalY = (lastY1 + lastY2) / 2f
-        val panDx = focalX - prevFocalX
-        val panDy = focalY - prevFocalY
-        if (abs(panDx) > 0.5f || abs(panDy) > 0.5f) {
-            camera.panBy(panDx, panDy)
+            onZoomChanged(camera.target.zoom)
         }
 
         lastX1 = x1; lastY1 = y1

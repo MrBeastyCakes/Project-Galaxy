@@ -189,14 +189,15 @@ class GalaxyViewModel @Inject constructor(
     }
 
     fun onZoomChanged(zoom: Float) {
-        val currentlyVisible = _uiState.value.isSurfaceEditorVisible
-        // Hysteresis: enter at 50.0, exit at 40.0
+        val current = _uiState.value.isSurfaceEditorVisible
+        // Hysteresis: enter at 50.0, stay visible until zoom drops below 30.0
         val newVisible = when {
-            zoom >= 50.0f -> true
-            zoom <= 40.0f -> false
-            else -> currentlyVisible
+            current && zoom > 30.0f -> true   // locked visible
+            !current && zoom >= 50.0f -> true  // open
+            zoom <= 30.0f -> false             // close with wider margin
+            else -> current
         }
-        if (newVisible != currentlyVisible) {
+        if (newVisible != current) {
             _uiState.update { it.copy(isSurfaceEditorVisible = newVisible) }
         }
     }
@@ -359,7 +360,7 @@ class GalaxyViewModel @Inject constructor(
             currentZoom >= Camera.ZOOM_CLUSTER_MIN -> Camera.ZOOM_GALAXY_MIN
             else -> cam.minZoom
         }
-        cam.animateTo(cam.targetCenterX, cam.targetCenterY, targetZoom)
+        cam.animateTo(cam.target.x, cam.target.y, targetZoom)
     }
 
     /** Merge an asteroid's content into a planet (accretion drop gesture). */

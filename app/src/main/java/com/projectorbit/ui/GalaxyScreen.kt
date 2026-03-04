@@ -1,8 +1,12 @@
 package com.projectorbit.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
@@ -354,12 +358,23 @@ fun GalaxyScreen(
             }
 
             // --- Surface editor overlay ---
-            if (uiState.isSurfaceEditorVisible && selectedId != null) {
-                val selectedBody = uiState.renderSnapshot.bodies.find { it.id == selectedId }
+            AnimatedVisibility(
+                visible = uiState.isSurfaceEditorVisible && selectedId != null,
+                enter = fadeIn(tween(400)) + expandIn(
+                    expandFrom = Alignment.Center,
+                    animationSpec = tween(400, easing = FastOutSlowInEasing)
+                ),
+                exit = fadeOut(tween(300)) + shrinkOut(
+                    shrinkTowards = Alignment.Center,
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                )
+            ) {
+                val sid = uiState.selectedBodyId ?: return@AnimatedVisibility
+                val selectedBody = uiState.renderSnapshot.bodies.find { it.id == sid }
                 SurfaceScreen(
-                    bodyId = selectedId,
+                    bodyId = sid,
                     bodyName = selectedBody?.name ?: "",
-                    visible = uiState.isSurfaceEditorVisible,
+                    visible = true,
                     onNavigateBack = { galaxyViewModel.zoomOut() },
                     modifier = Modifier.fillMaxSize()
                 )

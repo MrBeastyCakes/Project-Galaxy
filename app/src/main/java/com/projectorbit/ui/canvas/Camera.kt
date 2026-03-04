@@ -14,22 +14,28 @@ import kotlin.math.pow
  * @Volatile fields allow the render thread to safely read camera state
  * written by the main thread without locking.
  */
+
+/**
+ * Atomic snapshot of the camera's animation target.
+ * Bundled as a single @Volatile reference so reads/writes are never torn
+ * across the render thread and the gesture/main thread.
+ */
+data class CameraTarget(val x: Double, val y: Double, val zoom: Float)
+
 class Camera(
     val screenWidth: Float,
     val screenHeight: Float
 ) {
 
-    // World-space focus point — written by main/gesture thread, read by render thread
+    // World-space focus point — written by update(), read by render thread
     @Volatile var centerX: Double = 0.0
     @Volatile var centerY: Double = 0.0
 
     // Zoom: 0.001 = galaxy view, 1.0 = solar system, 10.0 = planet, 100.0 = surface
     @Volatile var zoom: Float = 0.01f
 
-    // Smooth animation targets — written by main thread
-    @Volatile var targetCenterX: Double = 0.0
-    @Volatile var targetCenterY: Double = 0.0
-    @Volatile var targetZoom: Float = 0.01f
+    // Single atomic target — written by gesture/main thread, read by render thread
+    @Volatile var target: CameraTarget = CameraTarget(0.0, 0.0, 0.01f)
 
     // Lerp speed: 0.1 = smooth, 1.0 = instant
     var smoothingFactor: Float = 0.12f
@@ -52,22 +58,17 @@ class Camera(
 
     /**
      * Smoothly interpolate camera toward targets. Called once per render frame.
-     * Copy-on-read: capture volatile fields into locals at frame start.
+     * Reads target atomically once per frame to avoid tearing.
      */
     fun update(dt: Float) {
         // Frame-rate independent exponential smoothing:
         // sf is calibrated for 60fps; correct for actual dt so feel is consistent at any frame rate.
         val sf = 1f - (1f - smoothingFactor).pow(dt * 60f)
-        val cx = centerX
-        val cy = centerY
-        val cz = zoom
-        val tx = targetCenterX
-        val ty = targetCenterY
-        val tz = targetZoom
+        val t = target  // single atomic read
 
-        centerX = cx + (tx - cx) * sf
-        centerY = cy + (ty - cy) * sf
-        zoom = cz + (tz - cz) * sf
+        centerX += (t.x - centerX) * sf
+        centerY += (t.y - centerY) * sf
+        zoom += (t.zoom - zoom) * sf
     }
 
     /**
@@ -98,46 +99,50 @@ class Camera(
      * Animate camera to a world-space target with a given zoom level.
      */
     fun animateTo(targetX: Double, targetY: Double, targetZoomLevel: Float) {
-        targetCenterX = targetX
-        targetCenterY = targetY
-        targetZoom = targetZoomLevel.coerceIn(minZoom, maxZoom)
+        target = CameraTarget(targetX, targetY, targetZoomLevel.coerceIn(minZoom, maxZoom))
     }
 
     /**
      * Immediately snap camera with no animation.
      */
     fun snapTo(worldX: Double, worldY: Double, zoomLevel: Float) {
+        val z = zoomLevel.coerceIn(minZoom, maxZoom)
         centerX = worldX
         centerY = worldY
-        zoom = zoomLevel.coerceIn(minZoom, maxZoom)
-        targetCenterX = worldX
-        targetCenterY = worldY
-        targetZoom = zoom
+        zoom = z
+        target = CameraTarget(worldX, worldY, z)
     }
 
     /**
      * Pan camera by screen-space delta (gesture handler calls this).
      * Converts screen delta to world delta and updates targets.
+     * Uses target.zoom (not smoothed zoom) so the conversion is consistent with
+     * the zoom level being animated toward.
      */
     fun panBy(screenDx: Float, screenDy: Float) {
-        val z = zoom.toDouble()
-        targetCenterX -= screenDx / z
-        targetCenterY -= screenDy / z
+        val t = target
+        val z = t.zoom.toDouble()
+        target = t.copy(x = t.x - screenDx / z, y = t.y - screenDy / z)
     }
 
     /**
      * Apply zoom with a focal point in screen space (pinch-to-zoom).
+     * Also incorporates centroid movement so a single call handles both
+     * zoom-anchoring and two-finger pan — no separate panBy() needed.
+     *
+     * Uses the current smoothed centerX/Y (not target) for the focal world
+     * computation so the anchor tracks what is visually under the fingers.
      */
     fun zoomBy(scaleFactor: Float, focalScreenX: Float, focalScreenY: Float) {
-        val (focalWorldX, focalWorldY) = screenToWorld(focalScreenX, focalScreenY)
-        val newZoom = (targetZoom * scaleFactor).coerceIn(minZoom, maxZoom)
-        // Adjust center so focal world point remains at the same screen position
+        // Use current smoothed state for focal world point so anchor matches visual
+        val focalWorldX = centerX + (focalScreenX - screenWidth / 2.0) / zoom
+        val focalWorldY = centerY + (focalScreenY - screenHeight / 2.0) / zoom
+        val newZoom = (target.zoom * scaleFactor).coerceIn(minZoom, maxZoom)
         val z = newZoom.toDouble()
+        // Place new center so that focalWorld maps to focalScreen at newZoom
         val newCenterX = focalWorldX - (focalScreenX - screenWidth / 2.0) / z
         val newCenterY = focalWorldY - (focalScreenY - screenHeight / 2.0) / z
-        targetZoom = newZoom
-        targetCenterX = newCenterX
-        targetCenterY = newCenterY
+        target = CameraTarget(newCenterX, newCenterY, newZoom)
     }
 
     /**
@@ -194,9 +199,7 @@ class Camera(
             it.centerX = this.centerX
             it.centerY = this.centerY
             it.zoom = this.zoom
-            it.targetCenterX = this.targetCenterX
-            it.targetCenterY = this.targetCenterY
-            it.targetZoom = this.targetZoom
+            it.target = this.target
             it.smoothingFactor = this.smoothingFactor
         }
 }

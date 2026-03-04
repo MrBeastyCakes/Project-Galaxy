@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.view.SurfaceHolder
+import com.projectorbit.domain.model.BodyType
 import kotlin.random.Random
 
 /**
@@ -44,6 +45,9 @@ class GalaxyRenderer(
     // --- Render loop state ---
     @Volatile var running: Boolean = false
     @Volatile var showDebugInfo: Boolean = false
+
+    // Callback fired on render thread after each camera.update(); callers must post to main thread.
+    var onZoomChanged: ((Float) -> Unit)? = null
 
     // Latest render snapshot — set from GalaxySurfaceView (main thread)
     @Volatile private var renderSnapshot: RenderSnapshot = RenderSnapshot.EMPTY
@@ -102,6 +106,9 @@ class GalaxyRenderer(
             // Update camera smooth interpolation
             camera.update(dt)
 
+            // Notify zoom listeners with the smoothed zoom value (render thread; callers must post to main thread)
+            onZoomChanged?.invoke(camera.zoom)
+
             // Update particle effects
             effectPainter.update(dt)
 
@@ -155,7 +162,8 @@ class GalaxyRenderer(
         for (entry in renderList) {
             val body = entry.body
             val (sx, sy) = camera.worldToScreen(body.positionX, body.positionY)
-            val sr = camera.worldRadiusToScreen(body.radius).coerceAtLeast(4f)
+            val rawSr = camera.worldRadiusToScreen(body.radius)
+            val sr = rawSr.coerceIn(4f, maxScreenRadius(body.bodyType, frameZoom))
             celestialPainter.draw(
                 canvas, body, sx, sy, sr,
                 alpha = entry.alpha,
@@ -200,6 +208,16 @@ class GalaxyRenderer(
                 16f, 40f, debugPaint
             )
         }
+    }
+
+    private fun maxScreenRadius(type: BodyType, zoom: Float): Float = when (type) {
+        BodyType.SUN -> 80f
+        BodyType.BINARY_STAR -> 80f
+        BodyType.GAS_GIANT -> 60f
+        BodyType.PLANET, BodyType.DWARF_PLANET -> if (zoom > Camera.ZOOM_PLANET_MIN) 120f else 48f
+        BodyType.MOON -> 24f
+        BodyType.ASTEROID -> 16f
+        BodyType.NEBULA -> 40f
     }
 
     private fun drawOrbitPaths(
@@ -307,10 +325,20 @@ class GalaxyRenderer(
             for (star in stars) {
                 val offsetX = (cameraCx * star[4] * parallaxScale).toFloat()
                 val offsetY = (cameraCy * star[4] * parallaxScale).toFloat()
-                val sx = ((star[0] + offsetX) % cw + cw) % cw
-                val sy = ((star[1] + offsetY) % ch + ch) % ch
+                val starRadius = star[2]
                 paint.color = Color.argb(star[3].toInt(), 255, 255, 255)
-                canvas.drawCircle(sx, sy, star[2], paint)
+                // Tile-based wrapping: render each star across a 3x3 grid of tiles.
+                // Only tiles that overlap the screen are drawn, eliminating modulo snap.
+                for (tileX in -1..1) {
+                    for (tileY in -1..1) {
+                        val sx = star[0] + offsetX + tileX * cw
+                        val sy = star[1] + offsetY + tileY * ch
+                        if (sx >= -starRadius && sx <= cw + starRadius &&
+                            sy >= -starRadius && sy <= ch + starRadius) {
+                            canvas.drawCircle(sx, sy, starRadius, paint)
+                        }
+                    }
+                }
             }
         }
     }

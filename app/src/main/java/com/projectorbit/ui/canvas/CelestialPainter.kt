@@ -55,24 +55,8 @@ class CelestialPainter {
         style = Paint.Style.STROKE
     }
 
-    // Reusable path for asteroid irregular polygon
+    // Reusable path for asteroid diamond shape
     private val asteroidPath = Path()
-
-    // Pre-computed asteroid polygon vertices (normalized, scaled at draw time)
-    private val asteroidVertices: Array<FloatArray> = precomputeAsteroidPolygon()
-
-    private fun precomputeAsteroidPolygon(): Array<FloatArray> {
-        val sides = 7
-        val vertices = Array(sides) { FloatArray(2) }
-        val radii = floatArrayOf(1.0f, 0.7f, 0.9f, 0.6f, 0.85f, 0.75f, 0.95f)
-        for (i in 0 until sides) {
-            val angle = (2.0 * PI * i / sides).toFloat()
-            val r = radii[i]
-            vertices[i][0] = cos(angle) * r
-            vertices[i][1] = sin(angle) * r
-        }
-        return vertices
-    }
 
     // -------------------------------------------------------------------------
     // Public draw dispatch
@@ -132,7 +116,7 @@ class CelestialPainter {
         body: RenderBody,
         sx: Float, sy: Float, sr: Float,
         alpha: Int,
-        zoom: Float,
+        @Suppress("UNUSED_PARAMETER") zoom: Float,
         timeSec: Float
     ) {
         // Outer glow (larger, more transparent)
@@ -162,10 +146,8 @@ class CelestialPainter {
         )
         canvas.drawCircle(sx, sy, sr, basePaint)
 
-        // Animated corona flicker (low zoom only)
-        if (zoom < Camera.ZOOM_CLUSTER_MAX) {
-            drawCorona(canvas, sx, sy, sr, alpha, timeSec)
-        }
+        // Animated corona flicker (always drawn when sun is visible)
+        drawCorona(canvas, sx, sy, sr, alpha, timeSec)
     }
 
     private fun drawCorona(
@@ -307,6 +289,7 @@ class CelestialPainter {
         sx: Float, sy: Float, sr: Float,
         alpha: Int
     ) {
+        // Fill with a subtle radial gradient
         basePaint.shader = RadialGradient(
             sx, sy, sr,
             intArrayOf(
@@ -318,6 +301,14 @@ class CelestialPainter {
             Shader.TileMode.CLAMP
         )
         canvas.drawCircle(sx, sy, sr * 0.85f, basePaint)
+
+        // Dashed outline to distinguish from regular planets
+        strokePaint.shader = null
+        strokePaint.color = Color.argb(alpha, 160, 180, 200)
+        strokePaint.strokeWidth = 2f
+        strokePaint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(6f, 4f), 0f)
+        canvas.drawCircle(sx, sy, sr * 0.85f, strokePaint)
+        strokePaint.pathEffect = null
     }
 
     private fun drawMoon(
@@ -326,19 +317,22 @@ class CelestialPainter {
         sx: Float, sy: Float, sr: Float,
         alpha: Int
     ) {
-        basePaint.shader = null
-        basePaint.color = Color.argb(alpha, 200, 200, 210)
         val moonRadius = sr.coerceAtLeast(3f)
-        canvas.drawCircle(sx, sy, moonRadius, basePaint)
+        // Moons draw as outlined circles (stroke only) to distinguish from planets
+        strokePaint.shader = null
+        strokePaint.color = Color.argb(alpha, 200, 200, 210)
+        strokePaint.strokeWidth = 2f
+        strokePaint.pathEffect = null
+        canvas.drawCircle(sx, sy, moonRadius, strokePaint)
 
         if (body.isCompleted) {
             strokePaint.color = Color.argb((alpha * 0.8f).toInt(), 100, 220, 100)
             strokePaint.strokeWidth = 1.5f
-            strokePaint.shader = null
             canvas.drawCircle(sx, sy, moonRadius + 2f, strokePaint)
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun drawAsteroid(
         canvas: Canvas,
         body: RenderBody,
@@ -347,26 +341,19 @@ class CelestialPainter {
         timeSec: Float
     ) {
         val radius = sr.coerceAtLeast(2f)
-        val tumbleRate = ((body.id.hashCode() and 0xFF) / 255f) * 0.8f + 0.2f
-        val rotation = timeSec * tumbleRate
 
-        canvas.save()
-        canvas.translate(sx, sy)
-        canvas.rotate(Math.toDegrees(rotation.toDouble()).toFloat())
-
+        // Draw as a diamond (rotated square) for clear visual distinction
         asteroidPath.reset()
-        val verts = asteroidVertices
-        asteroidPath.moveTo(verts[0][0] * radius, verts[0][1] * radius)
-        for (i in 1 until verts.size) {
-            asteroidPath.lineTo(verts[i][0] * radius, verts[i][1] * radius)
-        }
+        asteroidPath.moveTo(sx, sy - radius)   // top
+        asteroidPath.lineTo(sx + radius, sy)   // right
+        asteroidPath.lineTo(sx, sy + radius)   // bottom
+        asteroidPath.lineTo(sx - radius, sy)   // left
         asteroidPath.close()
 
         basePaint.shader = null
+        basePaint.style = Paint.Style.FILL
         basePaint.color = Color.argb(alpha, 160, 150, 140)
         canvas.drawPath(asteroidPath, basePaint)
-
-        canvas.restore()
     }
 
     private fun drawNebula(

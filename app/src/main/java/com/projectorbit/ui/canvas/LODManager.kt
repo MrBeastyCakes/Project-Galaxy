@@ -11,15 +11,22 @@ import com.projectorbit.domain.model.BodyType
 class LODManager {
 
     companion object {
-        // Fade band half-width (fraction of zoom range)
-        private const val FADE_BAND = 0.005f
-
         // Zoom boundaries (match Camera constants)
         private const val ZOOM_GALAXY_MAX = Camera.ZOOM_GALAXY_MAX
         private const val ZOOM_CLUSTER_MAX = Camera.ZOOM_CLUSTER_MAX
         private const val ZOOM_SYSTEM_MAX = Camera.ZOOM_SYSTEM_MAX
+        private const val ZOOM_PLANET_MIN = Camera.ZOOM_PLANET_MIN
         private const val ZOOM_PLANET_MAX = Camera.ZOOM_PLANET_MAX
         private const val ZOOM_SURFACE_MIN = Camera.ZOOM_SURFACE_MIN
+
+        /**
+         * Proportional fade band: 10% of the threshold value.
+         * Galaxy  threshold 0.05  -> band 0.005 (same as before)
+         * Cluster threshold 0.5   -> band 0.05  (10x wider)
+         * System  threshold 5.0   -> band 0.5   (100x wider)
+         * Planet  threshold 50.0  -> band 5.0
+         */
+        private fun fadeBandFor(threshold: Float): Float = threshold * 0.1f
     }
 
     enum class ZoomLevel {
@@ -96,23 +103,28 @@ class LODManager {
             }
             BodyType.GAS_GIANT, BodyType.BINARY_STAR -> {
                 // Visible from cluster view onward
-                fadeBand(zoom, ZOOM_GALAXY_MAX - FADE_BAND, ZOOM_GALAXY_MAX + FADE_BAND)
+                val threshold = ZOOM_GALAXY_MAX
+                fadeBand(zoom, threshold - fadeBandFor(threshold), threshold + fadeBandFor(threshold))
             }
             BodyType.PLANET, BodyType.DWARF_PLANET -> {
                 // Visible from system view onward
-                fadeBand(zoom, ZOOM_CLUSTER_MAX - FADE_BAND, ZOOM_CLUSTER_MAX + FADE_BAND)
+                val threshold = ZOOM_CLUSTER_MAX
+                fadeBand(zoom, threshold - fadeBandFor(threshold), threshold + fadeBandFor(threshold))
             }
             BodyType.MOON -> {
-                // Visible only in planet/surface view
-                fadeBand(zoom, ZOOM_SYSTEM_MAX - FADE_BAND, ZOOM_SYSTEM_MAX + FADE_BAND)
+                // Visible only in planet/surface view (fades in at ZOOM_PLANET_MIN, not ZOOM_SYSTEM_MAX)
+                val threshold = ZOOM_PLANET_MIN
+                fadeBand(zoom, threshold - fadeBandFor(threshold), threshold + fadeBandFor(threshold))
             }
             BodyType.ASTEROID -> {
                 // Asteroids visible from galaxy through cluster view, fade out at system zoom
-                1f - fadeBand(zoom, ZOOM_CLUSTER_MAX - FADE_BAND, ZOOM_CLUSTER_MAX + FADE_BAND)
+                val threshold = ZOOM_CLUSTER_MAX
+                1f - fadeBand(zoom, threshold - fadeBandFor(threshold), threshold + fadeBandFor(threshold))
             }
             BodyType.NEBULA -> {
                 // Nebulae visible from cluster onward
-                fadeBand(zoom, ZOOM_GALAXY_MAX - FADE_BAND, ZOOM_GALAXY_MAX + FADE_BAND)
+                val threshold = ZOOM_GALAXY_MAX
+                fadeBand(zoom, threshold - fadeBandFor(threshold), threshold + fadeBandFor(threshold))
             }
         }
     }
@@ -151,7 +163,7 @@ class LODManager {
      * Alpha for orbit paths.
      */
     fun orbitPathAlpha(zoom: Float): Float {
-        val appear = fadeBand(zoom, ZOOM_CLUSTER_MAX - FADE_BAND, ZOOM_CLUSTER_MAX + FADE_BAND)
+        val appear = fadeBand(zoom, ZOOM_CLUSTER_MAX - fadeBandFor(ZOOM_CLUSTER_MAX), ZOOM_CLUSTER_MAX + fadeBandFor(ZOOM_CLUSTER_MAX))
         val disappear = 1f - fadeBand(zoom, ZOOM_PLANET_MAX - 1f, ZOOM_PLANET_MAX)
         return (appear * disappear).coerceIn(0f, 1f) * 0.3f // always faint
     }

@@ -70,9 +70,17 @@ class GalaxyViewModel @Inject constructor(
     init {
         // Observe all active bodies and build a lookup map
         viewModelScope.launch {
+            var isFirstEmit = true
             repository.getAllActive().collect { list ->
                 _bodyMap.value = list.associateBy { it.id }
                 _uiState.update { it.copy(isFirstLaunch = list.isEmpty()) }
+                // Fit camera on initial load if there are saved bodies
+                if (isFirstEmit && list.isNotEmpty()) {
+                    // Small delay to ensure camera is initialized
+                    delay(100L)
+                    fitCameraToAllBodies()
+                }
+                isFirstEmit = false
             }
         }
 
@@ -114,6 +122,44 @@ class GalaxyViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Fit camera to show all bodies with padding.
+     * Computes a bounding box of all active bodies and sets the camera
+     * zoom and center to show them all.
+     */
+    fun fitCameraToAllBodies() {
+        val cam = camera ?: return
+        val bodies = _bodyMap.value.values.toList()
+        if (bodies.isEmpty()) return
+
+        var minX = Double.MAX_VALUE
+        var maxX = -Double.MAX_VALUE
+        var minY = Double.MAX_VALUE
+        var maxY = -Double.MAX_VALUE
+
+        for (body in bodies) {
+            val r = body.radius + 20.0 // padding around each body
+            if (body.position.x - r < minX) minX = body.position.x - r
+            if (body.position.x + r > maxX) maxX = body.position.x + r
+            if (body.position.y - r < minY) minY = body.position.y - r
+            if (body.position.y + r > maxY) maxY = body.position.y + r
+        }
+
+        val worldWidth = (maxX - minX).coerceAtLeast(200.0)
+        val worldHeight = (maxY - minY).coerceAtLeast(200.0)
+        val centerX = (minX + maxX) / 2.0
+        val centerY = (minY + maxY) / 2.0
+
+        // Calculate zoom to fit all bodies with 20% padding
+        val screenW = cam.screenWidth
+        val screenH = cam.screenHeight
+        val zoomX = screenW / (worldWidth * 1.4) // 1.4 = 1.0 + 40% padding
+        val zoomY = screenH / (worldHeight * 1.4)
+        val targetZoom = minOf(zoomX, zoomY).toFloat().coerceIn(cam.minZoom, cam.maxZoom)
+
+        cam.animateTo(centerX, centerY, targetZoom)
+    }
+
     fun selectBody(bodyId: String?) {
         _uiState.update { it.copy(selectedBodyId = bodyId) }
     }
@@ -135,9 +181,24 @@ class GalaxyViewModel @Inject constructor(
         }
     }
 
-    fun createSun(name: String, posX: Double = 0.0, posY: Double = 0.0) {
+    fun createSun(name: String) {
         viewModelScope.launch {
+            // Spread suns apart: place each new sun 400 units from existing ones
+            val existingSuns = _bodyMap.value.values.filter {
+                it.type == BodyType.SUN
+            }
+            val sunCount = existingSuns.size
+            val spacing = 400.0
+            val posX = if (sunCount == 0) 0.0 else {
+                val angle = sunCount * (2.0 * Math.PI / 6.0) // hexagonal spread
+                kotlin.math.cos(angle) * spacing * ((sunCount + 1) / 2)
+            }
+            val posY = if (sunCount == 0) 0.0 else {
+                val angle = sunCount * (2.0 * Math.PI / 6.0)
+                kotlin.math.sin(angle) * spacing * ((sunCount + 1) / 2)
+            }
             createSunUseCase(name, posX, posY)
+            fitCameraToAllBodies()
         }
     }
 
@@ -150,12 +211,14 @@ class GalaxyViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             createPlanetUseCase(name, parentId, parentX, parentY, orbitRadius)
+            fitCameraToAllBodies()
         }
     }
 
     fun createAsteroid(text: String = "") {
         viewModelScope.launch {
             createAsteroidUseCase(text)
+            fitCameraToAllBodies()
         }
     }
 

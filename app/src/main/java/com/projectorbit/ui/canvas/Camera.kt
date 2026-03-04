@@ -14,8 +14,8 @@ import kotlin.math.min
  * written by the main thread without locking.
  */
 class Camera(
-    private val screenWidth: Float,
-    private val screenHeight: Float
+    val screenWidth: Float,
+    val screenHeight: Float
 ) {
 
     // World-space focus point — written by main/gesture thread, read by render thread

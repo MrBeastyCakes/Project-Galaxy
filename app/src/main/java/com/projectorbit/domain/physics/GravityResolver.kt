@@ -116,12 +116,15 @@ class GravityResolver(
         return root
     }
 
-    private fun insertBody(node: QuadNode.Internal, body: PhysicsBody) {
+    private fun insertBody(node: QuadNode.Internal, body: PhysicsBody, depth: Int = 0) {
         // Update aggregate mass and center of mass
         val newMass = node.totalMass + body.mass
         node.massCenterX = (node.massCenterX * node.totalMass + body.positionX * body.mass) / newMass
         node.massCenterY = (node.massCenterY * node.totalMass + body.positionY * body.mass) / newMass
         node.totalMass = newMass
+
+        // Guard against infinite recursion from coincident bodies
+        if (depth > MAX_TREE_DEPTH) return
 
         val quadrant = quadrantFor(node, body.positionX, body.positionY)
         val existing = node.children[quadrant]
@@ -143,13 +146,18 @@ class GravityResolver(
                     halfSize = node.halfSize * 0.5
                 )
                 node.children[quadrant] = childNode
-                insertBody(childNode, existing.body)
-                insertBody(childNode, body)
+                insertBody(childNode, existing.body, depth + 1)
+                insertBody(childNode, body, depth + 1)
             }
             is QuadNode.Internal -> {
-                insertBody(existing, body)
+                insertBody(existing, body, depth + 1)
             }
         }
+    }
+
+    companion object {
+        /** Max quadtree depth to prevent stack overflow from coincident bodies. */
+        private const val MAX_TREE_DEPTH = 40
     }
 
     private fun quadrantFor(node: QuadNode.Internal, x: Double, y: Double): Int {

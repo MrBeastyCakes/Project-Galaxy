@@ -368,6 +368,28 @@ class GalaxyViewModel @Inject constructor(
         }
     }
 
+    /** Persist body position after drag and update orbit radius relative to parent. */
+    fun onBodyDragged(bodyId: String, worldX: Double, worldY: Double) {
+        viewModelScope.launch {
+            val body = repository.getById(bodyId) ?: return@launch
+            val updated = body.copy(position = Vec2(worldX, worldY))
+            // Recalculate orbit radius if the body has a parent
+            val parentId = body.parentId
+            val newOrbitRadius = if (parentId != null) {
+                val parent = repository.getById(parentId)
+                if (parent != null) {
+                    val dx = worldX - parent.position.x
+                    val dy = worldY - parent.position.y
+                    kotlin.math.sqrt(dx * dx + dy * dy)
+                } else body.orbitRadius
+            } else body.orbitRadius
+            repository.upsert(updated.copy(orbitRadius = newOrbitRadius))
+            physicsWorld.enqueue(
+                com.projectorbit.domain.physics.PhysicsCommand.UpdateOrbitRadius(bodyId, newOrbitRadius)
+            )
+        }
+    }
+
     /** Create a tidal lock constraint between two bodies (drag gesture). */
     fun createTidalLock(bodyIdA: String, bodyIdB: String) {
         viewModelScope.launch {

@@ -224,7 +224,8 @@ class GalaxySurfaceView @JvmOverloads constructor(
         onAccretionDrop: (asteroidId: String, planetId: String) -> Unit,
         onCreatePlanetFromAsteroid: (asteroidId: String, worldX: Double, worldY: Double) -> Unit,
         onCreateTidalLock: (bodyIdA: String, bodyIdB: String) -> Unit,
-        onZoomChanged: (Float) -> Unit = {}
+        onZoomChanged: (Float) -> Unit = {},
+        onBodyDragged: ((bodyId: String, worldX: Double, worldY: Double) -> Unit)? = null
     ) {
         // Store the setup lambda so it can be re-applied after surface recreation
         val setup = {
@@ -239,7 +240,8 @@ class GalaxySurfaceView @JvmOverloads constructor(
                     onAccretionDrop = onAccretionDrop,
                     onCreatePlanetFromAsteroid = onCreatePlanetFromAsteroid,
                     onCreateTidalLock = onCreateTidalLock,
-                    onZoomChanged = onZoomChanged
+                    onZoomChanged = onZoomChanged,
+                    onBodyDragged = onBodyDragged
                 )
             }
         }

@@ -238,6 +238,9 @@ fun GalaxyScreen(
                                 },
                                 onZoomChanged = { zoom ->
                                     galaxyViewModel.onZoomChanged(zoom)
+                                },
+                                onBodyDragged = { bodyId, worldX, worldY ->
+                                    galaxyViewModel.onBodyDragged(bodyId, worldX, worldY)
                                 }
                             )
                         }

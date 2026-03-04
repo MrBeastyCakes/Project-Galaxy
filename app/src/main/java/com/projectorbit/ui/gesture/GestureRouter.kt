@@ -27,7 +27,8 @@ class GestureRouter(
     private val onAccretionDrop: (asteroidId: String, planetId: String) -> Unit,
     private val onCreatePlanetFromAsteroid: (asteroidId: String, worldX: Double, worldY: Double) -> Unit,
     private val onCreateTidalLock: (bodyIdA: String, bodyIdB: String) -> Unit,
-    private val onZoomChanged: (Float) -> Unit = {}
+    private val onZoomChanged: (Float) -> Unit = {},
+    private val onBodyDragged: ((bodyId: String, worldX: Double, worldY: Double) -> Unit)? = null
 ) {
 
     private enum class State { IDLE, PAN_ZOOM, TAP, DRAG }
@@ -41,7 +42,7 @@ class GestureRouter(
     )
     private val dragHandler = DragHandler(
         camera, hitTester, physicsWorld,
-        onAccretionDrop, onCreatePlanetFromAsteroid, onCreateTidalLock
+        onAccretionDrop, onCreatePlanetFromAsteroid, onCreateTidalLock, onBodyDragged
     )
 
     // Long-press detection

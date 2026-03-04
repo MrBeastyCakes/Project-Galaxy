@@ -77,12 +77,11 @@ class MergeAsteroidUseCase @Inject constructor(
         )
     }
 
-    private fun mergeRichText(existingJson: String?, appendJson: String?): String {
-        // Simple concatenation strategy -- the rich text editor layer handles
-        // proper JSON merging. Here we produce a valid fallback.
-        if (existingJson.isNullOrBlank()) return appendJson ?: ""
-        if (appendJson.isNullOrBlank()) return existingJson
-        // Wrap both as a combined JSON array for the rich text engine to parse
-        return """{"merged":true,"parts":[$existingJson,$appendJson]}"""
+    private fun mergeRichText(existingHtml: String?, appendHtml: String?): String {
+        // The rich text editor stores and loads HTML via setHtml()/toHtml().
+        // Concatenate HTML directly with a paragraph break as separator.
+        if (existingHtml.isNullOrBlank()) return appendHtml ?: ""
+        if (appendHtml.isNullOrBlank()) return existingHtml
+        return "$existingHtml<p></p>$appendHtml"
     }
 }

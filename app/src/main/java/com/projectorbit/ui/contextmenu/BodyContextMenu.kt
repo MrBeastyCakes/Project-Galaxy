@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,9 +63,17 @@ fun BodyContextMenu(
 ) {
     val actions = actionsForBodyType(bodyType, isPinned, isShared)
     val count = actions.size
-    val menuRadius = 90.dp
+    val menuRadiusDp = 90.dp
+    val buttonSizeDp = 64.dp
+    val density = LocalDensity.current
+    val menuRadiusPx = with(density) { menuRadiusDp.toPx() }
+    val buttonHalfPx = with(density) { (buttonSizeDp / 2).toPx() }.roundToInt()
 
-    Box(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier) {
+        val screenWidthPx = constraints.maxWidth
+        val screenHeightPx = constraints.maxHeight
+        val buttonSizePx = with(density) { buttonSizeDp.toPx() }.roundToInt()
+
         // Scrim — tapping outside dismisses
         Box(
             modifier = Modifier
@@ -74,8 +84,14 @@ fun BodyContextMenu(
         // Radial action buttons
         actions.forEachIndexed { index, action ->
             val angle = (2.0 * PI * index / count) - PI / 2.0
-            val offsetX = (cos(angle) * menuRadius.value).roundToInt()
-            val offsetY = (sin(angle) * menuRadius.value).roundToInt()
+            val offsetX = (cos(angle) * menuRadiusPx).roundToInt()
+            val offsetY = (sin(angle) * menuRadiusPx).roundToInt()
+
+            // Clamp to screen bounds so buttons near edges are not clipped
+            val rawX = screenX.roundToInt() + offsetX - buttonHalfPx
+            val rawY = screenY.roundToInt() + offsetY - buttonHalfPx
+            val clampedX = rawX.coerceIn(0, (screenWidthPx - buttonSizePx).coerceAtLeast(0))
+            val clampedY = rawY.coerceIn(0, (screenHeightPx - buttonSizePx).coerceAtLeast(0))
 
             val iconColor = if (action.isDestructive) DeleteRed else OrbitAccent
 
@@ -83,17 +99,14 @@ fun BodyContextMenu(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .offset {
-                        IntOffset(
-                            x = screenX.roundToInt() + offsetX - 24,
-                            y = screenY.roundToInt() + offsetY - 24
-                        )
+                        IntOffset(x = clampedX, y = clampedY)
                     }
+                    .size(buttonSizeDp)
                     .clip(CircleShape)
                     .background(MenuBackground)
                     .border(1.dp, MenuBorder, CircleShape)
                     .clickable { onAction(action) }
-                    .padding(8.dp)
-                    .size(48.dp),
+                    .padding(8.dp),
             ) {
                 Icon(
                     imageVector = action.icon,
@@ -103,7 +116,7 @@ fun BodyContextMenu(
                 )
                 Text(
                     text = action.label,
-                    fontSize = 8.sp,
+                    fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1
                 )

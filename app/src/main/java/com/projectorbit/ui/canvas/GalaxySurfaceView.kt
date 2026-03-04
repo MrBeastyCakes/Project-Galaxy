@@ -27,9 +27,17 @@ class GalaxySurfaceView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : SurfaceView(context, attrs), SurfaceHolder.Callback {
 
-    // Camera is shared: main thread writes targets, render thread reads and smooths
+    // Camera is shared: main thread writes targets, render thread reads and smooths.
+    // Always use the ViewModel-owned instance (set via attachCamera) so that all
+    // camera operations (zoomToBody, fitCameraToAllBodies, gestures, rendering) share
+    // one object and can never diverge.
     var camera: Camera? = null
         private set
+
+    // The ViewModel-owned Camera instance. Set before the surface is created so that
+    // surfaceChanged can adopt it (with updated screen dimensions) rather than creating
+    // a new one.
+    private var externalCamera: Camera? = null
 
     private var renderer: GalaxyRenderer? = null
     private var renderThread: Thread? = null
@@ -39,6 +47,19 @@ class GalaxySurfaceView @JvmOverloads constructor(
 
     // Stored gesture callbacks so we can re-wire after surface recreation
     private var pendingGestureSetup: (() -> Unit)? = null
+
+    /**
+     * Attach the ViewModel-owned Camera. Call from GalaxyScreen whenever the ViewModel
+     * returns an updated Camera instance (initial creation or orientation change).
+     * The camera is adopted immediately for gestures; the render thread picks it up on
+     * the next surfaceChanged or continues using it if the surface is already live.
+     */
+    fun attachCamera(cam: Camera) {
+        externalCamera = cam
+        camera = cam
+        // Re-wire gestures so GestureRouter references the current camera instance.
+        pendingGestureSetup?.invoke()
+    }
 
     init {
         holder.addCallback(this)
@@ -58,7 +79,12 @@ class GalaxySurfaceView @JvmOverloads constructor(
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         stopRenderThread()
 
-        val cam = Camera(width.toFloat(), height.toFloat())
+        // Use the ViewModel-owned camera if attached; otherwise create a local one so
+        // rendering can start even before the ViewModel wires up (e.g. in previews/tests).
+        // Do NOT call onSurfaceSizeChanged here — that would create a new object and
+        // invalidate the ViewModel's reference. Screen-dimension updates are handled by
+        // GalaxyScreen calling initCamera + attachCamera on each layout change.
+        val cam = externalCamera ?: Camera(width.toFloat(), height.toFloat())
         camera = cam
 
         val rend = GalaxyRenderer(holder, cam)

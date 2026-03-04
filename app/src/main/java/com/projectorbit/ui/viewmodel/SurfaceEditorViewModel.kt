@@ -8,6 +8,8 @@ import com.projectorbit.domain.physics.PhysicsWorld
 import com.projectorbit.domain.repository.CelestialBodyRepository
 import com.projectorbit.domain.repository.NoteContentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,8 @@ class SurfaceEditorViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(EditorUiState())
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
 
+    private var autoSaveJob: Job? = null
+
     fun loadNote(bodyId: String, bodyName: String) {
         viewModelScope.launch {
             val content = noteContentRepository.getForBody(bodyId)
@@ -48,6 +52,16 @@ class SurfaceEditorViewModel @Inject constructor(
                         ?.count { w -> w.isNotEmpty() } ?: 0
                 )
             }
+
+            // Update access metadata so planet mass reflects engagement
+            val body = celestialBodyRepository.getById(bodyId)
+            if (body != null) {
+                val updated = body.copy(
+                    lastAccessedAt = System.currentTimeMillis(),
+                    accessCount = body.accessCount + 1
+                )
+                celestialBodyRepository.upsert(updated)
+            }
         }
     }
 
@@ -60,41 +74,59 @@ class SurfaceEditorViewModel @Inject constructor(
                 wordCount = wordCount
             )
         }
+        scheduleAutoSave()
+    }
+
+    private fun scheduleAutoSave() {
+        autoSaveJob?.cancel()
+        autoSaveJob = viewModelScope.launch {
+            delay(2000L)
+            saveNoteInternal()
+        }
+    }
+
+    /** Called by the back button. Suspends until save completes to prevent data loss. */
+    suspend fun saveNoteAndWait() {
+        autoSaveJob?.cancel()
+        saveNoteInternal()
     }
 
     fun saveNote() {
+        autoSaveJob?.cancel()
+        viewModelScope.launch { saveNoteInternal() }
+    }
+
+    private suspend fun saveNoteInternal() {
         val state = _uiState.value
         val bodyId = state.bodyId ?: return
-        viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, saveError = false) }
-            try {
-                val now = System.currentTimeMillis()
-                noteContentRepository.upsert(
-                    NoteContent(
-                        bodyId = bodyId,
-                        richTextJson = state.richTextJson,
-                        plainText = state.plainText,
-                        updatedAt = now
-                    )
+        _uiState.update { it.copy(isSaving = true, saveError = false) }
+        try {
+            val now = System.currentTimeMillis()
+            noteContentRepository.upsert(
+                NoteContent(
+                    bodyId = bodyId,
+                    richTextJson = state.richTextJson,
+                    plainText = state.plainText,
+                    updatedAt = now
                 )
+            )
 
-                // Update word count and mass on the celestial body
-                val body = celestialBodyRepository.getById(bodyId)
-                if (body != null) {
-                    val newMass = CelestialBody.computeMass(
-                        wordCount = state.wordCount,
-                        accessCount = body.accessCount,
-                        isPinned = body.isPinned
-                    )
-                    val newRadius = CelestialBody.computeRadius(newMass)
-                    celestialBodyRepository.updateMassAndRadius(bodyId, newMass, newRadius)
-                    physicsWorld.setMass(bodyId, newMass)
-                }
-
-                _uiState.update { it.copy(isSaving = false) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isSaving = false, saveError = true) }
+            // Update word count and mass on the celestial body
+            val body = celestialBodyRepository.getById(bodyId)
+            if (body != null) {
+                val newMass = CelestialBody.computeMass(
+                    wordCount = state.wordCount,
+                    accessCount = body.accessCount,
+                    isPinned = body.isPinned
+                )
+                val newRadius = CelestialBody.computeRadius(newMass)
+                celestialBodyRepository.updateMassAndRadius(bodyId, newMass, newRadius)
+                physicsWorld.setMass(bodyId, newMass)
             }
+
+            _uiState.update { it.copy(isSaving = false) }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(isSaving = false, saveError = true) }
         }
     }
 }

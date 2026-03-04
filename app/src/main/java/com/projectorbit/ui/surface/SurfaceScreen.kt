@@ -4,13 +4,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
@@ -20,7 +16,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -31,14 +26,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.projectorbit.ui.theme.SpaceBlack
 import com.projectorbit.ui.theme.OrbitSurface
+import com.projectorbit.ui.theme.SpaceBlack
 import com.projectorbit.ui.viewmodel.SurfaceEditorViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Surface editor screen shown when zooming into a planet past the 50.0 threshold.
@@ -59,6 +54,7 @@ fun SurfaceScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     // Load note when body changes
     LaunchedEffect(bodyId) {
@@ -68,7 +64,7 @@ fun SurfaceScreen(
     // Show error snackbar
     LaunchedEffect(uiState.saveError) {
         if (uiState.saveError) {
-            snackbarHostState.showSnackbar("Unable to save — retrying")
+            snackbarHostState.showSnackbar("Unable to save")
         }
     }
 
@@ -84,8 +80,11 @@ fun SurfaceScreen(
                     title = { Text(uiState.bodyName, style = MaterialTheme.typography.titleMedium) },
                     navigationIcon = {
                         IconButton(onClick = {
-                            viewModel.saveNote()
-                            onNavigateBack()
+                            // Await save completion before navigating to prevent data loss race
+                            scope.launch {
+                                viewModel.saveNoteAndWait()
+                                onNavigateBack()
+                            }
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }

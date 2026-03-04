@@ -2,6 +2,7 @@ package com.projectorbit.ui.contextmenu
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
@@ -32,6 +33,7 @@ enum class MenuAction(
     SHARE("Share", Icons.Default.Share),
     UNSHARE("Unshare", Icons.Default.Share),
     CREATE_WORMHOLE("Wormhole", Icons.Default.Star),
+    COMPLETE("Complete", Icons.Default.CheckCircle),
     DELETE("Delete", Icons.Default.Delete, isDestructive = true)
 }
 
@@ -44,12 +46,14 @@ fun actionsForBodyType(
     isShared: Boolean
 ): List<MenuAction> = when (bodyType) {
     BodyType.SUN -> listOf(
+        MenuAction.OPEN,
         MenuAction.RENAME,
         MenuAction.ADD_CHILD,
         if (isPinned) MenuAction.UNPIN else MenuAction.PIN,
         MenuAction.DELETE
     )
     BodyType.GAS_GIANT, BodyType.BINARY_STAR -> listOf(
+        MenuAction.OPEN,
         MenuAction.RENAME,
         MenuAction.ADD_CHILD,
         if (isPinned) MenuAction.UNPIN else MenuAction.PIN,
@@ -59,6 +63,7 @@ fun actionsForBodyType(
     BodyType.PLANET -> listOf(
         MenuAction.OPEN,
         MenuAction.RENAME,
+        MenuAction.ADD_CHILD,
         if (isPinned) MenuAction.UNPIN else MenuAction.PIN,
         MenuAction.TAG,
         MenuAction.LINK,
@@ -74,14 +79,18 @@ fun actionsForBodyType(
         MenuAction.DELETE
     )
     BodyType.MOON -> listOf(
+        MenuAction.OPEN,
+        MenuAction.COMPLETE,
         MenuAction.RENAME,
         MenuAction.DELETE
     )
     BodyType.ASTEROID -> listOf(
+        MenuAction.OPEN,
         MenuAction.RENAME,
         MenuAction.DELETE
     )
     BodyType.NEBULA -> listOf(
+        MenuAction.RENAME,
         MenuAction.DELETE
     )
 }

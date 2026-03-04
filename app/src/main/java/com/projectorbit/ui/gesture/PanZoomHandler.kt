@@ -3,6 +3,7 @@ package com.projectorbit.ui.gesture
 import android.view.MotionEvent
 import com.projectorbit.ui.canvas.Camera
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
@@ -131,9 +132,10 @@ class PanZoomHandler(
     fun updateFling(dt: Float) {
         if (abs(flingVx) < 1f && abs(flingVy) < 1f) return
         camera.panBy(flingVx * dt, flingVy * dt)
-        // Deceleration
-        flingVx *= 0.92f
-        flingVy *= 0.92f
+        // Frame-rate independent deceleration: 0.92 per frame at 60fps
+        val decay = 0.92f.pow(dt * 60f)
+        flingVx *= decay
+        flingVy *= decay
     }
 
     private fun span(x1: Float, y1: Float, x2: Float, y2: Float): Float {

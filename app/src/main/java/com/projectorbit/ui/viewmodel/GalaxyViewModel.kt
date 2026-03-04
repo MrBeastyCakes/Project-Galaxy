@@ -12,9 +12,11 @@ import com.projectorbit.domain.repository.LinkRepository
 import com.projectorbit.domain.usecase.CreateAsteroidUseCase
 import com.projectorbit.domain.usecase.CreatePlanetUseCase
 import com.projectorbit.domain.usecase.CreateSunUseCase
+import com.projectorbit.domain.repository.NoteContentRepository
 import com.projectorbit.domain.usecase.CreateTidalLockUseCase
 import com.projectorbit.domain.usecase.DeleteBodyUseCase
 import com.projectorbit.domain.usecase.MergeAsteroidUseCase
+import com.projectorbit.domain.usecase.ToggleMoonUseCase
 import com.projectorbit.ui.canvas.Camera
 import com.projectorbit.ui.canvas.RenderSnapshot
 import com.projectorbit.ui.canvas.RenderSnapshotBuilder
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.PI
 
 data class GalaxyUiState(
     val renderSnapshot: RenderSnapshot = RenderSnapshot.EMPTY,
@@ -45,13 +48,15 @@ data class GalaxyUiState(
 class GalaxyViewModel @Inject constructor(
     val physicsWorld: PhysicsWorld,
     private val repository: CelestialBodyRepository,
+    private val noteContentRepository: NoteContentRepository,
     private val linkRepository: LinkRepository,
     private val createSunUseCase: CreateSunUseCase,
     private val createPlanetUseCase: CreatePlanetUseCase,
     private val createAsteroidUseCase: CreateAsteroidUseCase,
     private val deleteBodyUseCase: DeleteBodyUseCase,
     private val mergeAsteroidUseCase: MergeAsteroidUseCase,
-    private val createTidalLockUseCase: CreateTidalLockUseCase
+    private val createTidalLockUseCase: CreateTidalLockUseCase,
+    private val toggleMoonUseCase: ToggleMoonUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(GalaxyUiState())
@@ -116,10 +121,25 @@ class GalaxyViewModel @Inject constructor(
         }
     }
 
-    fun initCamera(screenWidth: Float, screenHeight: Float) {
-        if (camera == null) {
-            camera = Camera(screenWidth, screenHeight)
+    /**
+     * Create or update the ViewModel-owned Camera. Returns the authoritative Camera instance
+     * so GalaxyScreen can attach it to GalaxySurfaceView, ensuring rendering, gestures, and
+     * ViewModel camera operations (zoomToBody, fitCameraToAllBodies) all share one object.
+     */
+    fun initCamera(screenWidth: Float, screenHeight: Float): Camera {
+        val existing = camera
+        if (existing != null) {
+            // Update screen dimensions on orientation change while preserving camera state.
+            if (existing.screenWidth != screenWidth || existing.screenHeight != screenHeight) {
+                val updated = existing.onSurfaceSizeChanged(screenWidth, screenHeight)
+                camera = updated
+                return updated
+            }
+            return existing
         }
+        val cam = Camera(screenWidth, screenHeight)
+        camera = cam
+        return cam
     }
 
     /**
@@ -197,8 +217,8 @@ class GalaxyViewModel @Inject constructor(
                 val angle = sunCount * (2.0 * Math.PI / 6.0)
                 kotlin.math.sin(angle) * spacing * ((sunCount + 1) / 2)
             }
-            createSunUseCase(name, posX, posY)
-            fitCameraToAllBodies()
+            val newSun = createSunUseCase(name, posX, posY)
+            camera?.animateTo(newSun.position.x, newSun.position.y, Camera.ZOOM_SYSTEM_MIN)
         }
     }
 
@@ -210,20 +230,22 @@ class GalaxyViewModel @Inject constructor(
         orbitRadius: Double = 150.0
     ) {
         viewModelScope.launch {
-            createPlanetUseCase(name, parentId, parentX, parentY, orbitRadius)
-            fitCameraToAllBodies()
+            val orbitAngle = (Math.random() * 2 * PI)
+            val newPlanet = createPlanetUseCase(name, parentId, parentX, parentY, orbitRadius, orbitAngle)
+            camera?.animateTo(newPlanet.position.x, newPlanet.position.y, Camera.ZOOM_SYSTEM_MIN)
         }
     }
 
     fun createAsteroid(text: String = "") {
         viewModelScope.launch {
-            createAsteroidUseCase(text)
-            fitCameraToAllBodies()
+            val newAsteroid = createAsteroidUseCase(text)
+            camera?.animateTo(newAsteroid.position.x, newAsteroid.position.y, Camera.ZOOM_CLUSTER_MAX)
         }
     }
 
-    fun deleteBody(bodyId: String, plainText: String, posX: Double, posY: Double) {
+    fun deleteBody(bodyId: String, posX: Double, posY: Double) {
         viewModelScope.launch {
+            val plainText = noteContentRepository.getForBody(bodyId)?.plainText ?: ""
             deleteBodyUseCase(bodyId, plainText, posX, posY)
             _uiState.update { it.copy(pendingUndoBodyId = bodyId, selectedBodyId = null) }
             // Auto-clear undo after 30 seconds
@@ -387,6 +409,17 @@ class GalaxyViewModel @Inject constructor(
             physicsWorld.enqueue(
                 com.projectorbit.domain.physics.PhysicsCommand.UpdateOrbitRadius(bodyId, newOrbitRadius)
             )
+        }
+    }
+
+    /** Mark a moon as complete. Triggers dissolve animation and removes from physics. */
+    fun toggleMoonCompletion(moonId: String) {
+        viewModelScope.launch {
+            toggleMoonUseCase(moonId)
+            // Remove from physics after dissolve animation (1 second)
+            delay(1000L)
+            toggleMoonUseCase.removePhysicsBody(moonId)
+            _uiState.update { it.copy(selectedBodyId = null) }
         }
     }
 

@@ -7,6 +7,7 @@ import com.projectorbit.domain.model.NebulaFragment
 import com.projectorbit.util.Vec2
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 
 class DeleteBodyUseCase @Inject constructor(
     private val repository: CelestialBodyRepository,
@@ -15,8 +16,29 @@ class DeleteBodyUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(bodyId: String, plainText: String, posX: Double, posY: Double) {
         val now = System.currentTimeMillis()
+        deleteRecursive(bodyId, plainText, posX, posY, now)
+    }
 
-        // Soft-delete in Room
+    private suspend fun deleteRecursive(
+        bodyId: String,
+        plainText: String,
+        posX: Double,
+        posY: Double,
+        now: Long
+    ) {
+        // Cascade: delete all direct children first
+        val children = repository.getChildrenOf(bodyId).first()
+        for (child in children) {
+            deleteRecursive(
+                bodyId = child.id,
+                plainText = "",
+                posX = child.position.x,
+                posY = child.position.y,
+                now = now
+            )
+        }
+
+        // Soft-delete this body in Room
         repository.softDelete(bodyId, now)
 
         // Remove from physics simulation

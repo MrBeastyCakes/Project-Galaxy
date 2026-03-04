@@ -40,12 +40,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.projectorbit.ui.canvas.Camera
 import com.projectorbit.ui.canvas.GalaxySurfaceView
 import com.projectorbit.ui.contextmenu.BodyContextMenu
 import com.projectorbit.ui.contextmenu.MenuAction
@@ -73,6 +76,7 @@ fun GalaxyScreen(
     val uiState by galaxyViewModel.uiState.collectAsState()
     val searchState by searchViewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     var showQuickCapture by remember { mutableStateOf(false) }
     var showCreateMenu by remember { mutableStateOf(false) }
     var showCreateSunDialog by remember { mutableStateOf(false) }
@@ -212,9 +216,16 @@ fun GalaxyScreen(
             AndroidView(
                 factory = { context ->
                     GalaxySurfaceView(context).also { view ->
-                        // Surface is not ready at factory time; wire gestures after the first
-                        // layout pass when surfaceChanged has run and camera exists.
-                        view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                        // Wire gestures after the first layout pass so view dimensions are known.
+                        // Also initialise the ViewModel-owned Camera and attach it to the view so
+                        // that rendering, gestures, and ViewModel camera ops share one instance.
+                        view.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                            val w = (right - left).toFloat()
+                            val h = (bottom - top).toFloat()
+                            if (w > 0f && h > 0f) {
+                                val cam = galaxyViewModel.initCamera(w, h)
+                                view.attachCamera(cam)
+                            }
                             view.setupGestures(
                                 physicsWorld = galaxyViewModel.physicsWorld,
                                 onBodySelected = { body ->
@@ -227,7 +238,6 @@ fun GalaxyScreen(
                                     galaxyViewModel.zoomOut()
                                 },
                                 onAccretionDrop = { asteroidId, planetId ->
-                                    // Handled by ViewModel; MergeAsteroidUseCase called there
                                     galaxyViewModel.mergeAsteroidIntoPlanet(asteroidId, planetId)
                                 },
                                 onCreatePlanetFromAsteroid = { asteroidId, worldX, worldY ->
@@ -296,39 +306,45 @@ fun GalaxyScreen(
                             isPinned = selectedBody.isPinned,
                             isShared = selectedBody.isShared,
                             onAction = { action ->
-                                when (action) {
-                                    MenuAction.OPEN -> {
-                                        // Zoom to body to trigger surface editor
-                                        val snap = uiState.renderSnapshot.bodies.find { it.id == selectedId }
-                                        if (snap != null) {
-                                            camera.animateTo(snap.positionX, snap.positionY, 55f)
+                                if (action == MenuAction.OPEN) {
+                                    // Zoom into body to trigger surface editor.
+                                    // Do NOT deselect — selectedBodyId must remain set so
+                                    // SurfaceScreen knows which note to show.
+                                    camera.animateTo(selectedBody.positionX, selectedBody.positionY, 55f)
+                                } else {
+                                    when (action) {
+                                        MenuAction.DELETE -> {
+                                            galaxyViewModel.deleteBody(
+                                                bodyId = selectedId,
+                                                posX = selectedBody.positionX,
+                                                posY = selectedBody.positionY
+                                            )
                                         }
+                                        MenuAction.PIN, MenuAction.UNPIN -> {
+                                            galaxyViewModel.pinBody(selectedId)
+                                        }
+                                        MenuAction.RENAME -> {
+                                            galaxyViewModel.showRenameDialog(selectedId)
+                                        }
+                                        MenuAction.ADD_CHILD -> {
+                                            galaxyViewModel.showAddChildDialog(selectedId)
+                                        }
+                                        MenuAction.SHARE, MenuAction.UNSHARE -> {
+                                            galaxyViewModel.shareBody(selectedId)
+                                        }
+                                        MenuAction.COMPLETE -> {
+                                            galaxyViewModel.toggleMoonCompletion(selectedId)
+                                        }
+                                        MenuAction.LINK, MenuAction.TAG, MenuAction.CREATE_WORMHOLE -> {
+                                            // Not yet implemented — inform the user
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar("Coming soon")
+                                            }
+                                        }
+                                        else -> {}
                                     }
-                                    MenuAction.DELETE -> {
-                                        galaxyViewModel.deleteBody(
-                                            bodyId = selectedId,
-                                            plainText = "",
-                                            posX = selectedBody.positionX,
-                                            posY = selectedBody.positionY
-                                        )
-                                    }
-                                    MenuAction.PIN, MenuAction.UNPIN -> {
-                                        galaxyViewModel.pinBody(selectedId)
-                                    }
-                                    MenuAction.RENAME -> {
-                                        galaxyViewModel.showRenameDialog(selectedId)
-                                    }
-                                    MenuAction.ADD_CHILD -> {
-                                        galaxyViewModel.showAddChildDialog(selectedId)
-                                    }
-                                    MenuAction.SHARE, MenuAction.UNSHARE -> {
-                                        galaxyViewModel.shareBody(selectedId)
-                                    }
-                                    MenuAction.LINK, MenuAction.TAG, MenuAction.CREATE_WORMHOLE -> {
-                                        // Advanced actions: deselect for now; future screens will handle these
-                                    }
+                                    galaxyViewModel.deselectBody()
                                 }
-                                galaxyViewModel.deselectBody()
                             },
                             onDismiss = { galaxyViewModel.deselectBody() },
                             modifier = Modifier.fillMaxSize()
@@ -351,11 +367,26 @@ fun GalaxyScreen(
 
             // --- Telescope overlay (search UI) ---
             if (searchState.isTelescopeActive) {
+                // Build (id, name) pairs for result chips from the current render snapshot
+                val matchedBodies = remember(searchState.matchedBodyIds, uiState.renderSnapshot) {
+                    uiState.renderSnapshot.bodies
+                        .filter { it.id in searchState.matchedBodyIds }
+                        .map { it.id to it.name }
+                }
                 TelescopeOverlay(
                     query = searchState.query,
                     onQueryChange = { searchViewModel.search(it) },
                     resultCount = searchState.matchedBodyIds.size,
-                    onDismiss = { searchViewModel.deactivateTelescope() }
+                    matchedBodies = matchedBodies,
+                    onDismiss = { searchViewModel.deactivateTelescope() },
+                    onNavigateToResult = { bodyId ->
+                        val body = uiState.renderSnapshot.bodies.find { it.id == bodyId }
+                        if (body != null) {
+                            galaxyViewModel.selectBody(bodyId)
+                            galaxyViewModel.camera?.animateTo(body.positionX, body.positionY, Camera.ZOOM_PLANET_MIN)
+                        }
+                        searchViewModel.deactivateTelescope()
+                    }
                 )
             } else {
                 // Search icon (top-right, shown when telescope is closed)

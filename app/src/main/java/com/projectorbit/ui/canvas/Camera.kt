@@ -3,6 +3,7 @@ package com.projectorbit.ui.canvas
 import android.graphics.RectF
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 /**
  * Camera manages world-space to screen-space transforms for the galaxy canvas.
@@ -54,7 +55,9 @@ class Camera(
      * Copy-on-read: capture volatile fields into locals at frame start.
      */
     fun update(dt: Float) {
-        val sf = smoothingFactor
+        // Frame-rate independent exponential smoothing:
+        // sf is calibrated for 60fps; correct for actual dt so feel is consistent at any frame rate.
+        val sf = 1f - (1f - smoothingFactor).pow(dt * 60f)
         val cx = centerX
         val cy = centerY
         val cz = zoom

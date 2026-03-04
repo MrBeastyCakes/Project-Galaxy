@@ -65,7 +65,8 @@ class GestureRouter(
             MotionEvent.ACTION_DOWN -> handleDown(event)
             MotionEvent.ACTION_POINTER_DOWN -> handlePointerDown(event)
             MotionEvent.ACTION_MOVE -> handleMove(event)
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> handleUp(event)
+            MotionEvent.ACTION_UP -> handleUp(event)
+            MotionEvent.ACTION_CANCEL -> handleCancel(event)
             MotionEvent.ACTION_POINTER_UP -> handlePointerUp(event)
             else -> false
         }
@@ -103,23 +104,17 @@ class GestureRouter(
             hasMoved = true
             if (state == State.TAP) {
                 cancelLongPress()
-                // Transition to pan if no body was hit at touch-down
-                val hit = hitTester.hitTest(pendingLongPressX, pendingLongPressY, currentSnapshot, camera)
-                state = if (hit == null) State.PAN_ZOOM else State.TAP
+                // Finger moved past slop — always transition to PAN_ZOOM regardless of
+                // whether a body was initially hit. This fixes the bug where touching a
+                // body then sliding would leave the state stuck in TAP.
+                state = State.PAN_ZOOM
             }
         }
 
         return when (state) {
             State.PAN_ZOOM -> panZoomHandler.onTouchEvent(event)
             State.DRAG -> { dragHandler.onDragMove(event.x, event.y); true }
-            State.TAP -> {
-                // Moved with one finger and no body hit -- switch to pan
-                if (hasMoved && event.pointerCount == 1) {
-                    state = State.PAN_ZOOM
-                    panZoomHandler.onTouchEvent(event)
-                }
-                true
-            }
+            State.TAP -> true
             State.IDLE -> false
         }
     }
@@ -142,6 +137,30 @@ class GestureRouter(
             }
             State.DRAG -> {
                 dragHandler.onDragEnd(event.x, event.y, currentSnapshot)
+                state = State.IDLE
+                true
+            }
+            State.IDLE -> false
+        }
+    }
+
+    private fun handleCancel(event: MotionEvent): Boolean {
+        cancelLongPress()
+
+        return when (state) {
+            State.DRAG -> {
+                // ACTION_CANCEL must not trigger drop side effects (accretion, planet creation).
+                // Call onDragCancel() which resets state without any callbacks.
+                dragHandler.onDragCancel()
+                state = State.IDLE
+                true
+            }
+            State.PAN_ZOOM -> {
+                panZoomHandler.onTouchEvent(event)
+                state = State.IDLE
+                true
+            }
+            State.TAP -> {
                 state = State.IDLE
                 true
             }

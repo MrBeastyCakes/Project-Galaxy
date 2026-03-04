@@ -60,6 +60,9 @@ class GalaxyRenderer(
     private val telescopeHighlightIds = mutableSetOf<String>()
     private val highlightLock = Object()
 
+    // Hidden body during morph transition
+    @Volatile var hiddenBodyId: String? = null
+
     // Drag line state
     @Volatile var dragLineActive: Boolean = false
     @Volatile var dragFromSx: Float = 0f
@@ -161,6 +164,7 @@ class GalaxyRenderer(
         val labelAlpha = if (lodManager.shouldDrawLabels(frameZoom)) lodManager.labelAlpha(frameZoom) else 0f
         for (entry in renderList) {
             val body = entry.body
+            if (body.id == hiddenBodyId) continue  // skip during morph transition
             val (sx, sy) = camera.worldToScreen(body.positionX, body.positionY)
             val rawSr = camera.worldRadiusToScreen(body.radius)
             val sr = rawSr.coerceIn(4f, maxScreenRadius(body.bodyType, frameZoom))

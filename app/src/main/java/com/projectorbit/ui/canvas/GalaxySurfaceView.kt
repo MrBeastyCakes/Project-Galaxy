@@ -206,6 +206,10 @@ class GalaxySurfaceView @JvmOverloads constructor(
         }
     }
 
+    fun setHiddenBody(bodyId: String?) {
+        renderer?.hiddenBodyId = bodyId
+    }
+
     // -------------------------------------------------------------------------
     // Drag line (tidal lock gesture feedback)
     // -------------------------------------------------------------------------

@@ -1,9 +1,5 @@
 package com.projectorbit.ui.surface
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -37,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.projectorbit.ui.viewmodel.SurfaceEditorViewModel
@@ -75,97 +71,86 @@ fun SurfaceScreen(
         }
     }
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = tween(300)),
-        exit = fadeOut(animationSpec = tween(300)),
-        modifier = modifier
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            tonalElevation = 3.dp,
-            color = MaterialTheme.colorScheme.surface
-        ) {
-            Scaffold(
-                topBar = {
-                    Column {
-                        // Drag handle
+    if (visible) {
+        Scaffold(
+            modifier = modifier,
+            topBar = {
+                Column {
+                    // Drag handle
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp, bottom = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(48.dp)
-                                    .height(4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                    )
-                            )
-                        }
-                        TopAppBar(
-                            title = {
-                                Text(
-                                    uiState.bodyName,
-                                    style = MaterialTheme.typography.headlineSmall
+                                .width(48.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                 )
-                            },
-                            navigationIcon = {
-                                IconButton(onClick = {
-                                    // Await save completion before navigating to prevent data loss race
-                                    scope.launch {
-                                        viewModel.saveNoteAndWait()
-                                        onNavigateBack()
-                                    }
-                                }) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                                }
-                            },
-                            actions = {
-                                if (uiState.isSaving) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.padding(horizontal = 12.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    IconButton(onClick = { viewModel.saveNote() }) {
-                                        Icon(Icons.Default.Save, contentDescription = "Save")
-                                    }
-                                }
-                                Text(
-                                    text = "${uiState.wordCount} words",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(end = 12.dp)
-                                )
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                titleContentColor = MaterialTheme.colorScheme.onSurface
-                            )
                         )
                     }
-                },
-                snackbarHost = { SnackbarHost(snackbarHostState) },
-                containerColor = MaterialTheme.colorScheme.surface
-            ) { innerPadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-                    OrbitRichTextEditor(
-                        initialJson = uiState.richTextJson,
-                        onContentChanged = { json, plain ->
-                            viewModel.updateContent(json, plain)
+                    TopAppBar(
+                        title = {
+                            Text(
+                                uiState.bodyName,
+                                style = MaterialTheme.typography.headlineSmall
+                            )
                         },
-                        modifier = Modifier.fillMaxSize()
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                // Await save completion before navigating to prevent data loss race
+                                scope.launch {
+                                    viewModel.saveNoteAndWait()
+                                    onNavigateBack()
+                                }
+                            }) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        actions = {
+                            if (uiState.isSaving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                IconButton(onClick = { viewModel.saveNote() }) {
+                                    Icon(Icons.Default.Save, contentDescription = "Save")
+                                }
+                            }
+                            Text(
+                                text = "${uiState.wordCount} words",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface
+                        )
                     )
                 }
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                OrbitRichTextEditor(
+                    initialJson = uiState.richTextJson,
+                    onContentChanged = { json, plain ->
+                        viewModel.updateContent(json, plain)
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }

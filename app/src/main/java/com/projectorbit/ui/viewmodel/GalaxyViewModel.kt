@@ -39,6 +39,9 @@ data class GalaxyUiState(
     val pendingUndoBodyId: String? = null,
     val isFirstLaunch: Boolean = false,
     val isSurfaceEditorVisible: Boolean = false,
+    val currentZoom: Float = 1f,
+    val morphPlanetColor: Int = 0,
+    val morphPlanetRadius: Float = 60f,
     // Dialog state for inline actions
     val showRenameDialogForId: String? = null,
     val showAddChildDialogForId: String? = null
@@ -190,16 +193,30 @@ class GalaxyViewModel @Inject constructor(
 
     fun onZoomChanged(zoom: Float) {
         val current = _uiState.value.isSurfaceEditorVisible
-        // Hysteresis: enter at 50.0, stay visible until zoom drops below 30.0
         val newVisible = when {
-            current && zoom > 30.0f -> true   // locked visible
-            !current && zoom >= 50.0f -> true  // open
-            zoom <= 30.0f -> false             // close with wider margin
+            current && zoom > 30.0f -> true
+            !current && zoom >= 50.0f -> true
+            zoom <= 30.0f -> false
             else -> current
         }
-        if (newVisible != current) {
-            _uiState.update { it.copy(isSurfaceEditorVisible = newVisible) }
-        }
+
+        // Capture planet color when entering the morph zone (zoom 40+) for the first time
+        val state = _uiState.value
+        val needsCapture = zoom >= 40f && state.morphPlanetColor == 0 && state.selectedBodyId != null
+        val capturedColor = if (needsCapture) {
+            val body = state.renderSnapshot.bodies.find { it.id == state.selectedBodyId }
+            body?.color ?: 0xFF508CC8.toInt()
+        } else state.morphPlanetColor
+
+        // Reset morph color when fully zoomed out of morph zone
+        val morphColor = if (zoom < 38f) 0 else capturedColor
+
+        _uiState.update { it.copy(
+            currentZoom = zoom,
+            isSurfaceEditorVisible = newVisible,
+            morphPlanetColor = morphColor,
+            morphPlanetRadius = state.morphPlanetRadius
+        ) }
     }
 
     fun createSun(name: String) {

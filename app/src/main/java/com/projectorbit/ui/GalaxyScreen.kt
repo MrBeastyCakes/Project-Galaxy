@@ -3,12 +3,13 @@ package com.projectorbit.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import com.projectorbit.ui.transition.PlanetMorphTransition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -279,6 +280,12 @@ fun GalaxyScreen(
                             view.height / 2f
                         )
                     }
+
+                    // Hide selected planet on canvas when morph overlay is active (zoom >= 40)
+                    view.setHiddenBody(
+                        if (uiState.currentZoom >= 40f && uiState.selectedBodyId != null)
+                            uiState.selectedBodyId else null
+                    )
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -357,27 +364,33 @@ fun GalaxyScreen(
                 }
             }
 
-            // --- Surface editor overlay ---
-            AnimatedVisibility(
-                visible = uiState.isSurfaceEditorVisible && selectedId != null,
-                enter = fadeIn(tween(400)) + expandIn(
-                    expandFrom = Alignment.Center,
-                    animationSpec = tween(400, easing = FastOutSlowInEasing)
-                ),
-                exit = fadeOut(tween(300)) + shrinkOut(
-                    shrinkTowards = Alignment.Center,
-                    animationSpec = tween(300, easing = FastOutSlowInEasing)
-                )
-            ) {
-                val sid = uiState.selectedBodyId ?: return@AnimatedVisibility
-                val selectedBody = uiState.renderSnapshot.bodies.find { it.id == sid }
-                SurfaceScreen(
-                    bodyId = sid,
-                    bodyName = selectedBody?.name ?: "",
-                    visible = true,
-                    onNavigateBack = { galaxyViewModel.zoomOut() },
+            // --- Surface editor overlay (zoom-driven planet morph) ---
+            // Morph zone: zoom 40→50 maps to progress 0→1
+            val morphProgress = ((uiState.currentZoom - 40f) / 10f).coerceIn(0f, 1f)
+            val morphColor = remember(uiState.morphPlanetColor) {
+                if (uiState.morphPlanetColor != 0) Color(uiState.morphPlanetColor)
+                else Color(0xFF508CC8)
+            }
+            val morphRadiusDp = with(LocalDensity.current) {
+                uiState.morphPlanetRadius.toDp()
+            }
+            if (selectedId != null && morphProgress > 0f) {
+                PlanetMorphTransition(
+                    morphProgress = morphProgress,
+                    planetColor = morphColor,
+                    planetRadiusDp = morphRadiusDp,
                     modifier = Modifier.fillMaxSize()
-                )
+                ) {
+                    val sid = uiState.selectedBodyId ?: return@PlanetMorphTransition
+                    val selectedBody = uiState.renderSnapshot.bodies.find { it.id == sid }
+                    SurfaceScreen(
+                        bodyId = sid,
+                        bodyName = selectedBody?.name ?: "",
+                        visible = uiState.isSurfaceEditorVisible,
+                        onNavigateBack = { galaxyViewModel.zoomOut() },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
 
             // --- Telescope overlay (search UI) ---
